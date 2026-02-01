@@ -22,7 +22,7 @@ Answer: def add(a, b):
             return a + b
 """
 
-# Few Shot Prompting - The model is given a direct question or task with prior examples.
+# Few Shot Prompting - The model is given a question or task with prior examples.
 response = client.chat.completions.create(
     model="gemini-3-flash-preview",
     messages=[
