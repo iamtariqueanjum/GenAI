@@ -6,9 +6,12 @@ import json
 
 load_dotenv()
 
-client = OpenAI(api_key=os.getenv("GEMINI_API_KEY"), 
-    base_url="https://generativelanguage.googleapis.com/v1beta/openai/"
-)
+# client = OpenAI(api_key=os.getenv("GEMINI_API_KEY"), 
+#     base_url="https://generativelanguage.googleapis.com/v1beta/openai/"
+# )
+
+client = OpenAI()
+
 
 SYSTEM_PROMPT = f"""
     You're an expert AI assistant in resolving user queries using chain of thought reasoning.
@@ -20,6 +23,12 @@ SYSTEM_PROMPT = f"""
     - Strictly follow the given JSON format output.
     - Only run one step at a time.
     - The sequence of steps is START (where user gives input), PLAN (that can be multiple times) and finally give the OUTPUT(which is displayed to the user)
+    - You must output EXACTLY ONE JSON object per response.
+    - Never output multiple steps at once.
+    - Do NOT explain hidden reasoning.
+    - Each response must be one of:
+        START → PLAN → PLAN → ... → OUTPUT
+    - After emitting a step, STOP.
 
     Output JSON format:
     {{'step': 'START' | 'PLAN' | 'OUTPUT', 'content': 'string'}}
@@ -38,18 +47,36 @@ SYSTEM_PROMPT = f"""
     OUTPUT : {{"step": "OUTPUT", "content": "3.5"}}
 """
 
+message_history = [
+    {"role": "system", "content": SYSTEM_PROMPT}
+]
 
+USER_PROMPT = input("👋🏻:")
 
-USER_PROMPT = "Hey, Write code to add two numbers as fast as possible using cache in js?"
+message_history.append({"role": "user", "content": USER_PROMPT})
 
 # Chain of Thought Prompting - The model is given a question or task and is asked to think step by step.
-response = client.chat.completions.create(
-    model="gemini-3-flash-preview", 
-    response_format={"type": "json_object"},
-    messages=[
-        {"role": "system", "content": SYSTEM_PROMPT}, 
-        {"role": "user", "content": USER_PROMPT},
-        {"role": "assistant", "content": json.dumps({"step": "PLAN", "content": "The user wants an optimized JavaScript function to add two numbers using a caching mechanism to improve performance for repeated calculations."})},
-        {"role": "assistant", "content": json.dumps({"step": "PLAN", "content": "I will create a function that uses a Map object to store the results of addition operations, allowing for O(1) retrieval of previously calculated sums."})}
-    ])
-print(response.choices[0].message.content)
+while True:
+    response = client.chat.completions.create(
+        model="gpt-4o-mini", 
+        response_format={"type": "json_object"},
+        messages=message_history
+    )
+        
+    raw_response = response.choices[0].message.content
+    message_history.append({"role": "assistant", "content": raw_response})
+
+    parsed_response = json.loads(raw_response)    
+
+
+    if parsed_response.get('step') == "START":
+        print("🔥", parsed_response.get('content')) 
+        continue
+
+    if parsed_response.get('step') == "PLAN":
+        print("🧠", parsed_response.get('content')) 
+        continue
+
+    if parsed_response.get('step') == "OUTPUT":
+        print("🤖", parsed_response.get('content')) 
+        break
