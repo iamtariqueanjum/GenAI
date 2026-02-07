@@ -1,10 +1,16 @@
 import json 
+import os
 import requests
 
 from openai import OpenAI
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 from typing import Optional
+
+
+def run_cmd(cmd: str):
+    response = os.system(cmd)
+    return response
 
 
 def get_weather(city: str):
@@ -20,6 +26,8 @@ def get_weather(city: str):
 load_dotenv()
 
 client = OpenAI()
+
+available_tools = {"get_weather": get_weather, "run_cmd": run_cmd}
 
 
 SYSTEM_PROMPT = f"""
@@ -46,7 +54,8 @@ SYSTEM_PROMPT = f"""
 
     Available Tools:
     - get_weather(city: str): Takes city name as input string and returns the weather info about the city.
-
+    - run_cmd(cmd: str): Takes linux sytem command  as input string and executes the command on users system and returns the output from that command. 
+    
     Example 1:
     START: Hey, Can you solve 2 + 3 * 5 / 10
     PLAN : {{"step": "PLAN", "content": "Seems like user is interested in math problem"}}
@@ -85,47 +94,46 @@ message_history = [
     {"role": "system", "content": SYSTEM_PROMPT}
 ]
 
-USER_PROMPT = input("👋🏻:")
-
-message_history.append({"role": "user", "content": USER_PROMPT})
-
-available_tools = {"get_weather": get_weather}
-
-
 while True:
-    response = client.chat.completions.parse(
-        model="gpt-4o-mini", 
-        response_format=OutputFormat,
-        messages=message_history
-    )
+
+    USER_PROMPT = input("👋🏻:")
+
+    message_history.append({"role": "user", "content": USER_PROMPT})
+
+    while True:
+        response = client.chat.completions.parse(
+            model="gpt-4o-mini", 
+            response_format=OutputFormat,
+            messages=message_history
+        )
+            
+        raw_response = response.choices[0].message.content
         
-    raw_response = response.choices[0].message.content
-    
-    message_history.append({"role": "assistant", "content": raw_response})
+        message_history.append({"role": "assistant", "content": raw_response})
 
-    parsed_response = response.choices[0].message.parsed
+        parsed_response = response.choices[0].message.parsed
 
 
-    if parsed_response.step == "START":
-        print("🔥", parsed_response.content) 
-        continue
+        if parsed_response.step == "START":
+            print("🔥", parsed_response.content) 
+            continue
 
-    if parsed_response.step == "PLAN":
-        print("🧠", parsed_response.content) 
-        continue
+        if parsed_response.step == "PLAN":
+            print("🧠", parsed_response.content) 
+            continue
 
-    if parsed_response.step == "TOOL":
-        tool_to_be_called = parsed_response.tool
-        tool_input = parsed_response.input
-        print(f"🛠️ {tool_to_be_called}({tool_input})")
-        
-        tool_response = available_tools[tool_to_be_called](tool_input)
-        message_history.append({
-            "role": "developer",
-            "content": json.dumps({"step": "OBSERVE", "tool": tool_to_be_called, "input": tool_input, "output": tool_response})
-        })
-        continue
+        if parsed_response.step == "TOOL":
+            tool_to_be_called = parsed_response.tool
+            tool_input = parsed_response.input
+            print(f"🛠️ {tool_to_be_called}({tool_input})")
+            
+            tool_response = available_tools[tool_to_be_called](tool_input)
+            message_history.append({
+                "role": "developer",
+                "content": json.dumps({"step": "OBSERVE", "tool": tool_to_be_called, "input": tool_input, "output": tool_response})
+            })
+            continue
 
-    if parsed_response.step == "OUTPUT":
-        print("🤖", parsed_response.content) 
-        break
+        if parsed_response.step == "OUTPUT":
+            print("🤖", parsed_response.content) 
+            break
