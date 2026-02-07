@@ -8,7 +8,7 @@ from langchain_qdrant import QdrantVectorStore
 
 load_dotenv()
 
-file_path = Path(__file__).parent / "attention.pdf"
+file_path = Path(__file__).parent / "nodejs.pdf"
 
 # Load this file in python program
 loader = PyPDFLoader(file_path)
