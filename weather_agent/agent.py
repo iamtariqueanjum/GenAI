@@ -1,7 +1,10 @@
-from openai import OpenAI
-from dotenv import load_dotenv
 import json 
 import requests
+
+from openai import OpenAI
+from dotenv import load_dotenv
+from pydantic import BaseModel, Field
+from typing import Optional
 
 
 def get_weather(city: str):
@@ -71,6 +74,13 @@ SYSTEM_PROMPT = f"""
 
 """
 
+class OutputFormat(BaseModel):
+    step : str = Field(..., description="The ID of the step. Example : PLAN, TOOL, OUTPUT etc")
+    content: Optional[str] = Field(None, description="The optional string content of the step")
+    tool: Optional[str] = Field(None, description="The ID of the tool to call")
+    input: Optional[str] = Field(None, description="The input of the tool")
+
+
 message_history = [
     {"role": "system", "content": SYSTEM_PROMPT}
 ]
@@ -83,29 +93,30 @@ available_tools = {"get_weather": get_weather}
 
 
 while True:
-    response = client.chat.completions.create(
+    response = client.chat.completions.parse(
         model="gpt-4o-mini", 
-        response_format={"type": "json_object"},
+        response_format=OutputFormat,
         messages=message_history
     )
         
     raw_response = response.choices[0].message.content
+    
     message_history.append({"role": "assistant", "content": raw_response})
 
-    parsed_response = json.loads(raw_response)    
+    parsed_response = response.choices[0].message.parsed
 
 
-    if parsed_response.get('step') == "START":
-        print("🔥", parsed_response.get('content')) 
+    if parsed_response.step == "START":
+        print("🔥", parsed_response.content) 
         continue
 
-    if parsed_response.get('step') == "PLAN":
-        print("🧠", parsed_response.get('content')) 
+    if parsed_response.step == "PLAN":
+        print("🧠", parsed_response.content) 
         continue
 
-    if parsed_response.get('step') == "TOOL":
-        tool_to_be_called = parsed_response.get('tool')
-        tool_input = parsed_response.get('input')
+    if parsed_response.step == "TOOL":
+        tool_to_be_called = parsed_response.tool
+        tool_input = parsed_response.input
         print(f"🛠️ {tool_to_be_called}({tool_input})")
         
         tool_response = available_tools[tool_to_be_called](tool_input)
@@ -115,6 +126,6 @@ while True:
         })
         continue
 
-    if parsed_response.get('step') == "OUTPUT":
-        print("🤖", parsed_response.get('content')) 
+    if parsed_response.step == "OUTPUT":
+        print("🤖", parsed_response.content) 
         break
