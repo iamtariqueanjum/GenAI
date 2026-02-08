@@ -26,7 +26,7 @@ def chatbot(state: State):
         ]
     )
     state["llm_output"] = response.choices[0].message.content
-    state["is_good"] = True # True or False
+    state["is_good"] = False # True or False
     return state
 
 
